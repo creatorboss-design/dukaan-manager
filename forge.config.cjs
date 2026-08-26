@@ -51,7 +51,7 @@ module.exports = {
       name: "@electron-forge/publisher-github",
       config: {
         repository: {
-          owner: "YOUR_GITHUB_USERNAME",  // <-- replace this
+          owner: "creatorboss-design",
           name: "dukaan-manager",
         },
         prerelease: false,
