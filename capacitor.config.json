@@ -1,0 +1,6 @@
+{
+  "appId": "com.dukaan.manager",
+  "appName": "Dukaan Manager",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
