@@ -1,0 +1,60 @@
+name: Build & Release Desktop Apps
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm install
+
+      # Make creates the installer files (Squirrel .exe, deb, zip)
+      - name: Make Installers
+        run: npm run make
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build Android APK via Capacitor & Gradle (only on Linux runner to save time)
+      - name: Setup Java (for Android)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Build Android APK
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          npm run build:android
+          cd android
+          ./gradlew assembleDebug
+          mv app/build/outputs/apk/debug/app-debug.apk ../dukaan-manager.apk
+
+      # Publish attaches the created installers to the GitHub Release
+      - name: Publish to GitHub Releases
+        run: npm run publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish the Android APK to the same GitHub Release
+      - name: Upload Android APK
+        if: matrix.os == 'ubuntu-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dukaan-manager.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

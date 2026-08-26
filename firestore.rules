@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isShopMember(shopId) {
+      return isSignedIn() && userDoc().data.shopId == shopId && (userDoc().data.role == 'owner' || userDoc().data.role == 'staff');
+    }
+
+    function isShopOwner(shopId) {
+      return isSignedIn() && userDoc().data.shopId == shopId && userDoc().data.role == 'owner';
+    }
+
+    match /users/{userId} {
+      // A user can read their own profile. Owners can read profiles of users who belong to their shop.
+      allow read: if isSignedIn() && (request.auth.uid == userId || (userDoc().data.role == 'owner' && userDoc().data.shopId == resource.data.shopId));
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Owners can update roles of users in their shop. Users can update their own non-role fields.
+      allow update: if isSignedIn() && (request.auth.uid == userId || (userDoc().data.role == 'owner' && userDoc().data.shopId == resource.data.shopId));
+      allow delete: if isSignedIn() && userDoc().data.role == 'owner' && userDoc().data.shopId == resource.data.shopId;
+    }
+
+    // Everything is now scoped under shops/{shopId}
+    match /shops/{shopId} {
+      allow create: if isSignedIn();
+      // Allow owner uid lookup for account recovery (user doc may not exist yet)
+      allow read: if isShopMember(shopId)
+                 || (isSignedIn() && resource.data.ownerId == request.auth.uid)
+                 || (isSignedIn() && userDoc().data.role == 'pending' && userDoc().data.shopId == shopId);
+      allow update, delete: if isShopOwner(shopId);
+
+      match /repairs/{docId} {
+        allow read: if isShopMember(shopId);
+        allow create: if isShopMember(shopId)
+                      && request.resource.data.estimatedCost is number
+                      && request.resource.data.status in ['Received', 'Diagnosing', 'Parts Ordered', 'Repairing', 'Ready', 'Delivered'];
+        allow update: if isShopMember(shopId);
+        allow delete: if isShopOwner(shopId);
+      }
+      
+      match /inventory/{docId} {
+        allow read: if isShopMember(shopId);
+        allow create: if isShopMember(shopId)
+                      && request.resource.data.quantity is number
+                      && request.resource.data.sellingPrice is number;
+        allow update: if isShopMember(shopId);
+        allow delete: if isShopOwner(shopId);
+      }
+      
+      match /inventory_sales/{docId} {
+        allow read, create: if isShopMember(shopId);
+      }
+      
+      match /phones/{docId} {
+        allow read, write: if isShopMember(shopId);
+      }
+      
+      match /cashbook/{docId} {
+        allow create: if isShopMember(shopId) 
+                      && request.resource.data.amount is number
+                      && request.resource.data.type in ['income', 'expense'];
+        allow read, update, delete: if isShopOwner(shopId);
+      }
+      
+      match /credit_tracker/{docId} {
+        allow read, create: if isShopMember(shopId);
+        allow update, delete: if isShopOwner(shopId);
+      }
+      
+      match /suppliers/{docId} {
+        allow read, write: if isShopOwner(shopId);
+      }
+    }
+  }
+}
