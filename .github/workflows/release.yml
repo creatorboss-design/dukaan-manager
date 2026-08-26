@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install Dependencies
         run: npm install
@@ -34,7 +34,7 @@ jobs:
       # Build Android APK via Capacitor & Gradle (only on Linux runner to save time)
       - name: Setup Java (for Android)
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -42,6 +42,8 @@ jobs:
       - name: Build Android APK
         if: matrix.os == 'ubuntu-latest'
         run: |
+          node -v
+          java -version
           npm run build:android
           cd android
           chmod +x gradlew
