@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { formatINR } from "../utils/formatCurrency";
 import { useSearchParams } from "react-router-dom";
 import { useCollection } from "../hooks/useFirestore";
 import { useApp } from "../contexts/AppContext";
@@ -31,7 +32,7 @@ function ExchangeCalc({ onClose }) {
       {estimated && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-2 text-center">
           <p className="text-sm text-blue-600 mb-1">Estimated Exchange Value</p>
-          <p className="text-3xl font-bold text-blue-800">₹ {estimated.toLocaleString("en-IN")}</p>
+          <p className="text-3xl font-bold text-blue-800">{formatINR(estimated)}</p>
         </div>
       )}
       <button onClick={onClose} className="w-full mt-4 text-gray-500 text-sm">Close</button>

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatINR } from "../utils/formatCurrency";
 import { Link } from "react-router-dom";
 import { useCollection } from "../hooks/useFirestore";
 import { useApp } from "../contexts/AppContext";
@@ -89,7 +90,7 @@ export default function Dashboard() {
         {isOwner && (
           <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
             <p className="text-sm text-gray-500 font-medium mb-1">Today&apos;s Income</p>
-            <p className="text-3xl font-bold text-green-600">₹ {stats.todayIncome.toLocaleString("en-IN")}</p>
+            <p className="text-3xl font-bold text-green-600">{formatINR(stats.todayIncome)}</p>
           </div>
         )}
 

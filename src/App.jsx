@@ -65,14 +65,14 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
 
       {/* Protected */}
-      <Route path="/dashboard"  element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/repairs"    element={<ProtectedRoute><Repairs /></ProtectedRoute>} />
-      <Route path="/inventory"  element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-      <Route path="/phones"     element={<ProtectedRoute><Phones /></ProtectedRoute>} />
-      <Route path="/cashbook"   element={<ProtectedRoute><CashBook /></ProtectedRoute>} />
-      <Route path="/customers"  element={<ProtectedRoute><Customers /></ProtectedRoute>} />
-      <Route path="/settings"   element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-      <Route path="/team"       element={<ProtectedRoute><Team /></ProtectedRoute>} />
+      <Route path="/dashboard"  element={<ProtectedRoute><ErrorBoundary><Dashboard /></ErrorBoundary></ProtectedRoute>} />
+      <Route path="/repairs"    element={<ProtectedRoute><ErrorBoundary><Repairs /></ErrorBoundary></ProtectedRoute>} />
+      <Route path="/inventory"  element={<ProtectedRoute><ErrorBoundary><Inventory /></ErrorBoundary></ProtectedRoute>} />
+      <Route path="/phones"     element={<ProtectedRoute><ErrorBoundary><Phones /></ErrorBoundary></ProtectedRoute>} />
+      <Route path="/cashbook"   element={<ProtectedRoute><ErrorBoundary><CashBook /></ErrorBoundary></ProtectedRoute>} />
+      <Route path="/customers"  element={<ProtectedRoute><ErrorBoundary><Customers /></ErrorBoundary></ProtectedRoute>} />
+      <Route path="/settings"   element={<ProtectedRoute><ErrorBoundary><Settings /></ErrorBoundary></ProtectedRoute>} />
+      <Route path="/team"       element={<ProtectedRoute><ErrorBoundary><Team /></ErrorBoundary></ProtectedRoute>} />
     </Routes>
   );
 }

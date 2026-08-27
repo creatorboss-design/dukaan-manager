@@ -6,7 +6,18 @@ import {
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
 
-export function useCollection(collectionName, constraints = []) {
+/**
+ * @param {string} collectionName
+ * @param {import("firebase/firestore").QueryConstraint[]} [constraints]
+ * @param {any[]} [constraintDeps] - Plain values (not QueryConstraint objects)
+ *   that determine when the query should actually re-subscribe, e.g. a status
+ *   filter or date range picked in the UI. Pass the primitive values that
+ *   your constraints were built from — NOT the constraints array itself,
+ *   since QueryConstraint objects are a new reference every render and would
+ *   cause an infinite re-subscribe loop if used directly as a dep.
+ *   Example: useCollection("repairs", [where("status", "==", statusFilter)], [statusFilter])
+ */
+export function useCollection(collectionName, constraints = [], constraintDeps = []) {
   const { userProfile } = useAuth();
   const shopId = userProfile?.shopId;
   const [data, setData] = useState([]);
@@ -50,9 +61,11 @@ export function useCollection(collectionName, constraints = []) {
     );
 
     return unsub;
-    // Only re-subscribe when the shopId or collection name actually changes.
+    // Re-subscribe when shopId, the collection, OR any caller-declared
+    // constraint dependency changes. constraintDeps is spread so callers can
+    // pass however many primitive values their filters depend on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionName, shopId]);
+  }, [collectionName, shopId, ...constraintDeps]);
 
   const add = async (data) => {
     if (!shopId) throw new Error("Shop ID missing");

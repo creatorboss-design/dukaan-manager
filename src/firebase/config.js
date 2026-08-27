@@ -12,7 +12,7 @@ const firebaseConfig = {
   measurementId: "G-BQ94SFEMV8"
 };
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
 // Use the modern persistent cache API (replaces deprecated enableIndexedDbPersistence)
 // persistentMultipleTabManager allows the app to work in multiple tabs simultaneously

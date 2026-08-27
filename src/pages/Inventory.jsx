@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
+import { toPositiveNumber } from "../utils/validation";
+import { friendlyError } from "../utils/friendlyError";
 import { useSearchParams } from "react-router-dom";
 import { runTransaction, doc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -69,8 +71,19 @@ function SellForm({ item, onSell, onClose, lang }) {
   const [price, setPrice] = useState(item.sellingPrice || "");
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
+  const [sellError, setSellError] = useState("");
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSell({ qty: Number(qty), price: Number(price), customerName, phone }); }}>
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      setSellError("");
+      try {
+        const validQty = toPositiveNumber(qty, "Quantity");
+        const validPrice = toPositiveNumber(price, "Price", { allowZero: true });
+        onSell({ qty: validQty, price: validPrice, customerName, phone });
+      } catch (err) {
+        setSellError(err.message);
+      }
+    }}>
       <p className="text-sm text-gray-500 mb-3">Selling: <span className="font-bold text-gray-800">{item.itemName}</span> (Stock: {item.quantity})</p>
       <div className="grid grid-cols-2 gap-2">
         <Input label="Quantity" type="number" value={qty} onChange={(e) => setQty(e.target.value)} required min="1" max={item.quantity} />
@@ -78,6 +91,7 @@ function SellForm({ item, onSell, onClose, lang }) {
       </div>
       <Input label="Customer Name (optional)" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
       <Input label="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      {sellError && <p className="text-red-600 text-xs mt-1 font-medium">{sellError}</p>}
       <BigButton type="submit" variant="success">{t("sell", lang)}</BigButton>
     </form>
   );
@@ -118,10 +132,10 @@ export default function Inventory() {
     try {
       const formattedForm = {
         ...form,
-        quantity: Number(form.quantity),
-        sellingPrice: Number(form.sellingPrice),
-        costPrice: form.costPrice ? Number(form.costPrice) : 0,
-        lowStockThreshold: form.lowStockThreshold ? Number(form.lowStockThreshold) : 2,
+        quantity: toPositiveNumber(form.quantity, "Quantity", { allowZero: true }),
+        sellingPrice: toPositiveNumber(form.sellingPrice, "Selling price"),
+        costPrice: form.costPrice ? toPositiveNumber(form.costPrice, "Cost price", { allowZero: true }) : 0,
+        lowStockThreshold: form.lowStockThreshold ? toPositiveNumber(form.lowStockThreshold, "Low stock threshold", { allowZero: true }) : 2,
       };
       if (selected) {
         await update(selected.id, formattedForm);
@@ -132,7 +146,7 @@ export default function Inventory() {
       }
       setModal(null); setSelected(null);
     } catch (e) {
-      showToast("Failed to save item", "error");
+      showToast(e.message, "error");
     }
   };
 
@@ -162,7 +176,7 @@ export default function Inventory() {
       setModal(null); setSelected(null);
       showToast(`Sold ${qty}x ${selected.itemName}`, "success");
     } catch (err) {
-      showToast(err.message, "error");
+      showToast(friendlyError(err), "error");
     }
   };
 

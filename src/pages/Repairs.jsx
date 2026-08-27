@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { toPositiveNumber } from "../utils/validation";
 import { useSearchParams } from "react-router-dom";
 import { useCollection } from "../hooks/useFirestore";
 import { useApp } from "../contexts/AppContext";
@@ -254,9 +255,9 @@ export default function Repairs() {
     try {
       const formattedForm = {
         ...form,
-        estimatedCost: Number(form.estimatedCost),
-        advancePaid: form.advancePaid ? Number(form.advancePaid) : 0,
-        warrantyDays: form.warrantyDays ? Number(form.warrantyDays) : 30,
+        estimatedCost: toPositiveNumber(form.estimatedCost, "Estimated cost"),
+        advancePaid: form.advancePaid ? toPositiveNumber(form.advancePaid, "Advance paid", { allowZero: true }) : 0,
+        warrantyDays: form.warrantyDays ? toPositiveNumber(form.warrantyDays, "Warranty days", { allowZero: true }) : 30,
       };
       if (editRepair) {
         await update(editRepair.id, formattedForm);

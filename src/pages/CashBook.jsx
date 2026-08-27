@@ -1,4 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
+import { toPositiveNumber } from "../utils/validation";
+import { formatINR } from "../utils/formatCurrency";
+import { friendlyError } from "../utils/friendlyError";
 import { useSearchParams } from "react-router-dom";
 import { useCollection } from "../hooks/useFirestore";
 import { useApp } from "../contexts/AppContext";
@@ -20,10 +23,19 @@ const INCOME_CATEGORIES = ["Repair", "Accessory Sale", "Phone Sale", "Other"];
 
 function EntryForm({ onSave, lang, initial }) {
   const [form, setForm] = useState({ type: "expense", category: "Parts", amount: "", description: "", date: new Date().toISOString().split("T")[0], ...initial });
+  const [formError, setFormError] = useState("");
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const cats = form.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ ...form, amount: Number(form.amount) }); }}>
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      setFormError("");
+      try {
+        onSave({ ...form, amount: toPositiveNumber(form.amount, "Amount") });
+      } catch (err) {
+        setFormError(err.message);
+      }
+    }}>
       <div className="flex gap-2 mb-3">
         {["income", "expense"].map((tp) => (
           <button key={tp} type="button" onClick={() => setForm((f) => ({ ...f, type: tp, category: tp === "income" ? "Repair" : "Parts" }))}
@@ -36,21 +48,34 @@ function EntryForm({ onSave, lang, initial }) {
       <Input label={`${t("amount", lang)} (₹)`} type="number" value={form.amount} onChange={set("amount")} required min="0" />
       <Input label={t("description", lang)} value={form.description} onChange={set("description")} placeholder="Details..." />
       <Input label="Date" type="date" value={form.date} onChange={set("date")} />
+      {formError && <p className="text-red-600 text-xs mt-1 font-medium">{formError}</p>}
       <BigButton type="submit">{t("save", lang)}</BigButton>
     </form>
   );
 }
 
+
+
 function CreditForm({ onSave, lang }) {
   const [form, setForm] = useState({ customerName: "", phone: "", amountOwed: "", dueDate: "", notes: "" });
+  const [formError, setFormError] = useState("");
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ ...form, amountOwed: Number(form.amountOwed), paidStatus: false }); }}>
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      setFormError("");
+      try {
+        onSave({ ...form, amountOwed: toPositiveNumber(form.amountOwed, "Amount owed"), paidStatus: false });
+      } catch (err) {
+        setFormError(err.message);
+      }
+    }}>
       <Input label={t("customerName", lang)} value={form.customerName} onChange={set("customerName")} required />
       <Input label={t("phone", lang)} value={form.phone} onChange={set("phone")} />
       <Input label="Amount Owed (₹)" type="number" value={form.amountOwed} onChange={set("amountOwed")} required />
       <Input label="Due Date" type="date" value={form.dueDate} onChange={set("dueDate")} />
       <Input label="Notes" value={form.notes} onChange={set("notes")} />
+      {formError && <p className="text-red-600 text-xs mt-1 font-medium">{formError}</p>}
       <BigButton type="submit">{t("save", lang)}</BigButton>
     </form>
   );
@@ -58,13 +83,23 @@ function CreditForm({ onSave, lang }) {
 
 function SupplierForm({ onSave, lang }) {
   const [form, setForm] = useState({ name: "", contact: "", pendingPayment: "0", notes: "" });
+  const [formError, setFormError] = useState("");
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ ...form, pendingPayment: Number(form.pendingPayment) }); }}>
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      setFormError("");
+      try {
+        onSave({ ...form, pendingPayment: toPositiveNumber(form.pendingPayment, "Pending payment", { allowZero: true }) });
+      } catch (err) {
+        setFormError(err.message);
+      }
+    }}>
       <Input label="Supplier Name" value={form.name} onChange={set("name")} required />
       <Input label={t("contact", lang)} value={form.contact} onChange={set("contact")} />
       <Input label="Pending Payment (₹)" type="number" value={form.pendingPayment} onChange={set("pendingPayment")} />
       <Input label="Notes" value={form.notes} onChange={set("notes")} />
+      {formError && <p className="text-red-600 text-xs mt-1 font-medium">{formError}</p>}
       <BigButton type="submit">{t("save", lang)}</BigButton>
     </form>
   );
@@ -160,15 +195,15 @@ export default function CashBook() {
               <div className="grid grid-cols-3 gap-2 mb-4">
                 <div className="bg-green-50 rounded-2xl p-3 text-center border border-green-100">
                   <p className="text-xs text-green-600 font-medium">Income</p>
-                  <p className="text-lg font-bold text-green-700">₹{totals.income.toLocaleString("en-IN")}</p>
+                  <p className="text-lg font-bold text-green-700">{formatINR(totals.income)}</p>
                 </div>
                 <div className="bg-red-50 rounded-2xl p-3 text-center border border-red-100">
                   <p className="text-xs text-red-600 font-medium">Expense</p>
-                  <p className="text-lg font-bold text-red-700">₹{totals.expense.toLocaleString("en-IN")}</p>
+                  <p className="text-lg font-bold text-red-700">{formatINR(totals.expense)}</p>
                 </div>
                 <div className={`rounded-2xl p-3 text-center border ${totals.profit >= 0 ? "bg-blue-50 border-blue-100" : "bg-amber-50 border-amber-100"}`}>
                   <p className={`text-xs font-medium ${totals.profit >= 0 ? "text-blue-600" : "text-amber-600"}`}>Profit</p>
-                  <p className={`text-lg font-bold ${totals.profit >= 0 ? "text-blue-700" : "text-amber-700"}`}>₹{totals.profit.toLocaleString("en-IN")}</p>
+                  <p className={`text-lg font-bold ${totals.profit >= 0 ? "text-blue-700" : "text-amber-700"}`}>{formatINR(totals.profit)}</p>
                 </div>
               </div>
             )}
@@ -196,7 +231,7 @@ export default function CashBook() {
                       <p className="text-xs text-gray-400">{e.date || (e.createdAt?.toDate?.()?.toLocaleDateString("en-IN") || "")}</p>
                     </div>
                     <p className={`font-bold mr-3 ${e.type === "income" ? "text-green-600" : "text-red-500"}`}>
-                      {e.type === "income" ? "+" : "-"}₹{Number(e.amount).toLocaleString("en-IN")}
+                      {e.type === "income" ? "+" : "-"}{formatINR(e.amount)}
                     </p>
                     {isOwner && (
                       <button onClick={(ev) => { ev.stopPropagation(); setDeleteData({ id: e.id, type: "entry" }); }} className="text-gray-400 hover:text-red-500 p-1">
@@ -218,7 +253,7 @@ export default function CashBook() {
         {tab === "udhaar" && (
           <>
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4">
-              <p className="text-sm text-amber-800">Total Outstanding: <span className="font-bold">₹{totalUdhaar.toLocaleString("en-IN")}</span></p>
+              <p className="text-sm text-amber-800">Total Outstanding: <span className="font-bold">{formatINR(totalUdhaar)}</span></p>
             </div>
             <button onClick={() => setModal("credit")} className="w-full bg-blue-700 text-white rounded-xl py-3 font-semibold text-sm flex items-center justify-center gap-2 shadow-md mb-3">
               <Plus size={16} /> Add Udhaar Entry
@@ -232,7 +267,7 @@ export default function CashBook() {
                       <p className="text-xs text-gray-400">{c.phone} {c.dueDate ? `• Due: ${c.dueDate}` : ""}</p>
                     </div>
                     <div className="flex items-center">
-                      <p className={`font-bold mr-3 ${c.paidStatus ? "text-green-600" : "text-red-500"}`}>₹{Number(c.amountOwed).toLocaleString("en-IN")}</p>
+                      <p className={`font-bold mr-3 ${c.paidStatus ? "text-green-600" : "text-red-500"}`}>{formatINR(c.amountOwed)}</p>
                       {isOwner && (
                         <button onClick={(ev) => { ev.stopPropagation(); setDeleteData({ id: c.id, type: "credit" }); }} className="text-gray-400 hover:text-red-500 p-1">
                           <Trash2 size={16} />
@@ -270,7 +305,7 @@ export default function CashBook() {
                     </div>
                     <div className="flex items-center">
                       {Number(s.pendingPayment) > 0 && (
-                        <p className="text-sm font-bold text-orange-600 mr-3">Due: ₹{Number(s.pendingPayment).toLocaleString("en-IN")}</p>
+                        <p className="text-sm font-bold text-orange-600 mr-3">Due: {formatINR(s.pendingPayment)}</p>
                       )}
                       {isOwner && (
                         <button onClick={(ev) => { ev.stopPropagation(); setDeleteData({ id: s.id, type: "supplier" }); }} className="text-gray-400 hover:text-red-500 p-1">

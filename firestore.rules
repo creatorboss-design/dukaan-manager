@@ -58,16 +58,17 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && request.resource.data.ownerId == request.auth.uid
                     && !exists(/databases/$(database)/documents/shops/$(shopId));
-      // Allow owner uid lookup for account recovery (user doc may not exist yet)
-      allow read: if isShopMember(shopId)
-                 || (isSignedIn() && resource.data.ownerId == request.auth.uid)
-                 || (isSignedIn() && userDoc().data.role == 'pending' && userDoc().data.shopId == shopId);
+      // Shop docs contain no sensitive data (name, ownerId, createdAt only), so any
+      // signed-in user may read them — needed for shop-code-existence checks during
+      // staff registration and account recovery.
+      allow read: if isSignedIn();
       allow update, delete: if isShopOwner(shopId);
 
       match /repairs/{docId} {
         allow read: if isShopMember(shopId);
         allow create: if isShopMember(shopId)
                       && request.resource.data.estimatedCost is number
+                      && request.resource.data.estimatedCost >= 0
                       && request.resource.data.status in ['Received', 'Diagnosing', 'Parts Ordered', 'Repairing', 'Ready', 'Delivered'];
         allow update: if isShopMember(shopId);
         allow delete: if isShopOwner(shopId);
@@ -77,7 +78,9 @@ service cloud.firestore {
         allow read: if isShopMember(shopId);
         allow create: if isShopMember(shopId)
                       && request.resource.data.quantity is number
-                      && request.resource.data.sellingPrice is number;
+                      && request.resource.data.quantity >= 0
+                      && request.resource.data.sellingPrice is number
+                      && request.resource.data.sellingPrice >= 0;
         allow update: if isShopMember(shopId);
         allow delete: if isShopOwner(shopId);
       }
@@ -93,6 +96,7 @@ service cloud.firestore {
       match /cashbook/{docId} {
         allow create: if isShopMember(shopId) 
                       && request.resource.data.amount is number
+                      && request.resource.data.amount >= 0
                       && request.resource.data.type in ['income', 'expense'];
         allow read, update, delete: if isShopOwner(shopId);
       }

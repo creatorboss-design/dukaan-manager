@@ -91,9 +91,27 @@ export function AuthProvider({ children }) {
   };
 
   const registerStaff = async (email, password, name, shopId) => {
+    const id = shopId.trim().toUpperCase();
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await setDoc(doc(db, "users", cred.user.uid), { name, role: "pending", shopId: shopId.toUpperCase(), email });
-    return cred;
+    try {
+      const shopSnap = await getDoc(doc(db, "shops", id));
+      if (!shopSnap.exists()) {
+        // Roll back the auth account so we don't leave an orphaned login
+        // with no way to ever get approved.
+        await cred.user.delete();
+        throw new Error("Shop code not found. Please double-check the code with your shop owner.");
+      }
+      await setDoc(doc(db, "users", cred.user.uid), { name, role: "pending", shopId: id, email });
+      return cred;
+    } catch (err) {
+      // If cred.user.delete() itself fails (e.g. requires-recent-login edge
+      // case), surface the original error anyway rather than a confusing
+      // secondary one — the account rollback failure is logged, not shown.
+      if (err.code && err.code !== "auth/requires-recent-login") {
+        console.error("Failed to roll back orphaned staff account:", err);
+      }
+      throw err;
+    }
   };
 
   const logout = () => signOut(auth);

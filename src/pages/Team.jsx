@@ -3,6 +3,7 @@ import { collection, query, getDocs, doc, updateDoc, where } from "firebase/fire
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { friendlyError } from "../utils/friendlyError";
 import PageWrapper from "../components/layout/PageWrapper";
 import Skeleton from "../components/shared/Skeleton";
 import { Copy, Check, Users, UserCheck, UserMinus, ShieldAlert } from "lucide-react";
@@ -43,7 +44,7 @@ export default function Team() {
       );
     } catch (err) {
       console.error("Failed to update role", err);
-      showToast(err.message, "error");
+      showToast(friendlyError(err), "error");
     }
   };
 
