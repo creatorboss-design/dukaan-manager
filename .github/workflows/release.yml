@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -11,19 +12,21 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       # Make creates the installer files (Squirrel .exe, deb, zip)
       - name: Make Installers
@@ -31,13 +34,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build Android APK via Capacitor & Gradle (only on Linux runner to save time)
+      # ---- Android build (Linux runner only) ----
+
       - name: Setup Java (for Android)
         if: matrix.os == 'ubuntu-latest'
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+
+      - name: Cache Gradle
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Setup Android SDK
+        if: matrix.os == 'ubuntu-latest'
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
 
       - name: Build Android APK
         if: matrix.os == 'ubuntu-latest'
@@ -47,19 +68,19 @@ jobs:
           npm run build:android
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace --no-daemon
           mv app/build/outputs/apk/debug/app-debug.apk ../dukaan-manager.apk
 
-      # Publish attaches the created installers to the GitHub Release
+      # ---- Publish ----
+
       - name: Publish to GitHub Releases
         run: npm run publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publish the Android APK to the same GitHub Release
       - name: Upload Android APK
         if: matrix.os == 'ubuntu-latest'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dukaan-manager.apk
         env:

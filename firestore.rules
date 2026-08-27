@@ -21,9 +21,35 @@ service cloud.firestore {
     match /users/{userId} {
       // A user can read their own profile. Owners can read profiles of users who belong to their shop.
       allow read: if isSignedIn() && (request.auth.uid == userId || (userDoc().data.role == 'owner' && userDoc().data.shopId == resource.data.shopId));
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      // Owners can update roles of users in their shop. Users can update their own non-role fields.
-      allow update: if isSignedIn() && (request.auth.uid == userId || (userDoc().data.role == 'owner' && userDoc().data.shopId == resource.data.shopId));
+
+      // Self-signup: a user may create their own profile document, but may
+      // NOT self-assign 'owner' or 'staff'. Only two cases are allowed:
+      //  (a) role == 'pending'  -> this is a "request to join an existing shop"
+      //  (b) role == 'owner'    -> ONLY if a shops/{shopId} doc already exists
+      //                             with ownerId == this user's uid (i.e. they
+      //                             really did just create that shop themselves)
+      allow create: if isSignedIn() && request.auth.uid == userId
+                    && (
+                         request.resource.data.role == 'pending'
+                         || (
+                              request.resource.data.role == 'owner'
+                              && get(/databases/$(database)/documents/shops/$(request.resource.data.shopId)).data.ownerId == request.auth.uid
+                            )
+                       );
+
+      // Self-update: a user may edit their own profile fields (name, phone,
+      // photo, etc.) but may NOT change their own role or shopId — that
+      // would be privilege escalation. An owner CAN change role/shopId for
+      // any user who already belongs to their shop (promotion/demotion).
+      allow update: if isSignedIn() && (
+                         (
+                           request.auth.uid == userId
+                           && request.resource.data.role == resource.data.role
+                           && request.resource.data.shopId == resource.data.shopId
+                         )
+                         || (userDoc().data.role == 'owner' && userDoc().data.shopId == resource.data.shopId)
+                       );
+
       allow delete: if isSignedIn() && userDoc().data.role == 'owner' && userDoc().data.shopId == resource.data.shopId;
     }
 

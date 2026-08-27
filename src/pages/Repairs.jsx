@@ -5,7 +5,8 @@ import { useApp } from "../contexts/AppContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { t } from "../utils/translations";
-import { generateInvoicePDF } from "../utils/generatePDF";
+import { generateInvoicePDF, generateInvoicePDFBlob } from "../utils/generatePDF";
+import { uploadToCloudinary } from "../utils/cloudinary";
 import PageWrapper from "../components/layout/PageWrapper";
 import Modal from "../components/shared/Modal";
 import BigButton from "../components/shared/BigButton";
@@ -13,7 +14,7 @@ import Input from "../components/shared/Input";
 import Select from "../components/shared/Select";
 import ConfirmDialog from "../components/shared/ConfirmDialog";
 import Skeleton from "../components/shared/Skeleton";
-import { Plus, Search, FileText, AlertCircle, Trash2 } from "lucide-react";
+import { Plus, Search, FileText, AlertCircle, Trash2, Cloud, CloudOff, ExternalLink } from "lucide-react";
 import { serverTimestamp } from "firebase/firestore";
 
 const STATUSES = ["Received", "Diagnosing", "Parts Ordered", "Repairing", "Ready", "Delivered"];
@@ -108,7 +109,8 @@ function RepairForm({ initial, onSave, onClose, lang, allRepairs }) {
   );
 }
 
-function RepairCard({ repair, onEdit, onStatusChange, onDelete, isOwner, lang, shopSettings }) {
+function RepairCard({ repair, onEdit, onStatusChange, onDelete, onUpload, uploadingId, isOwner, lang, shopSettings }) {
+  const uploading = uploadingId === repair.id;
   const [expanding, setExpanding] = useState(false);
   const balance = (Number(repair.finalCost || repair.estimatedCost) - Number(repair.advancePaid || 0));
 
@@ -159,6 +161,39 @@ function RepairCard({ repair, onEdit, onStatusChange, onDelete, isOwner, lang, s
         <button onClick={() => generateInvoicePDF({ repair, shopSettings })} className="flex items-center gap-1 text-sm text-gray-600 border border-gray-200 rounded-xl py-2 px-3 hover:bg-gray-50">
           <FileText size={14} /> PDF
         </button>
+        {/* Cloud upload button */}
+        <button
+          onClick={() => onUpload(repair)}
+          disabled={uploading}
+          title={repair.invoiceUrl ? "Re-upload invoice to cloud" : "Upload invoice to cloud"}
+          className={`flex items-center gap-1 text-sm border rounded-xl py-2 px-3 transition-colors ${
+            uploading
+              ? "border-blue-200 text-blue-400 bg-blue-50 cursor-wait"
+              : repair.invoiceUrl
+              ? "border-green-200 text-green-600 hover:bg-green-50"
+              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          {uploading ? (
+            <span className="animate-spin inline-block">⏳</span>
+          ) : repair.invoiceUrl ? (
+            <Cloud size={14} />
+          ) : (
+            <CloudOff size={14} />
+          )}
+        </button>
+        {/* Link to stored invoice if available */}
+        {repair.invoiceUrl && !uploading && (
+          <a
+            href={repair.invoiceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="View uploaded invoice"
+            className="flex items-center justify-center border border-blue-200 text-blue-500 rounded-xl px-3 hover:bg-blue-50 transition-colors"
+          >
+            <ExternalLink size={14} />
+          </a>
+        )}
         {repair.status === "Ready" && waLink && (
           <a
             href={waLink}
@@ -197,6 +232,7 @@ export default function Repairs() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editRepair, setEditRepair] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [uploadingId, setUploadingId] = useState(null);
 
   useEffect(() => {
     if (searchParams.get("new") === "1") {
@@ -260,6 +296,22 @@ export default function Repairs() {
 
   const handleEdit = (repair) => { setEditRepair(repair); setModalOpen(true); };
 
+  const handleUpload = async (repair) => {
+    if (uploadingId) return; // prevent parallel uploads
+    setUploadingId(repair.id);
+    try {
+      const blob = generateInvoicePDFBlob({ repair, shopSettings });
+      const filename = `invoice_${repair.tokenNo || repair.id}.pdf`;
+      const secureUrl = await uploadToCloudinary(blob, filename);
+      await update(repair.id, { invoiceUrl: secureUrl });
+      showToast("Invoice uploaded to cloud ✓", "success");
+    } catch (e) {
+      showToast("Upload failed: " + e.message, "error");
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
   return (
     <PageWrapper title={t("repairs", lang)}>
       <div className="py-4">
@@ -296,6 +348,7 @@ export default function Repairs() {
         ) : (
           filtered.map((r) => (
             <RepairCard key={r.id} repair={r} onEdit={handleEdit} onStatusChange={handleStatusChange} onDelete={setDeleteId}
+              onUpload={handleUpload} uploadingId={uploadingId}
               isOwner={isOwner} lang={lang} shopSettings={shopSettings} />
           ))
         )}
