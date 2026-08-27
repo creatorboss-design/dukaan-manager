@@ -1,7 +1,7 @@
 {
   "name": "dukaan-manager",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.9",
   "description": "Dukaan Manager Desktop App",
   "author": "Creator Boss",
   "type": "module",
