@@ -55,7 +55,9 @@ service cloud.firestore {
 
     // Everything is now scoped under shops/{shopId}
     match /shops/{shopId} {
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && !exists(/databases/$(database)/documents/shops/$(shopId));
       // Allow owner uid lookup for account recovery (user doc may not exist yet)
       allow read: if isShopMember(shopId)
                  || (isSignedIn() && resource.data.ownerId == request.auth.uid)

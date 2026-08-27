@@ -7,6 +7,7 @@ import {
   createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { generateUniqueShopCode } from "../utils/shopCode";
 
 const AuthContext = createContext(null);
 
@@ -82,8 +83,8 @@ export function AuthProvider({ children }) {
 
   const registerOwner = async (email, password, name, shopName) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    // Generate a 6-character alphanumeric shop code
-    const shopId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // Generate a collision-safe 6-character alphanumeric shop code
+    const shopId = await generateUniqueShopCode();
     await setDoc(doc(db, "shops", shopId), { name: shopName, ownerId: cred.user.uid, createdAt: new Date() });
     await setDoc(doc(db, "users", cred.user.uid), { name, role: "owner", shopId, email });
     return cred;

@@ -1,26 +1,32 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AppProvider } from "./contexts/AppContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary";
+
+// Keep these two eager — they're needed immediately on first load / auth
+// resolution, so lazy-loading them would add a flash-of-loading-spinner
+// for the very first thing every user sees.
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Repairs from "./pages/Repairs";
-import Inventory from "./pages/Inventory";
-import Phones from "./pages/Phones";
-import CashBook from "./pages/CashBook";
-import Customers from "./pages/Customers";
-import Settings from "./pages/Settings";
-import Download from "./pages/Download";
 
-import PendingApproval from "./pages/PendingApproval";
-import AccountRecovery from "./pages/AccountRecovery";
-import Team from "./pages/Team";
+// Everything behind auth can load on-demand — a user only ever needs
+// ONE of these on first load (whichever route they land on), not all nine.
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Repairs = lazy(() => import("./pages/Repairs"));
+const Inventory = lazy(() => import("./pages/Inventory"));
+const Phones = lazy(() => import("./pages/Phones"));
+const CashBook = lazy(() => import("./pages/CashBook"));
+const Customers = lazy(() => import("./pages/Customers"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Download = lazy(() => import("./pages/Download"));
+const PendingApproval = lazy(() => import("./pages/PendingApproval"));
+const AccountRecovery = lazy(() => import("./pages/AccountRecovery"));
+const Team = lazy(() => import("./pages/Team"));
 
-function ProtectedRoute({ children }) {
-  const { user, userProfile, loading } = useAuth();
-  if (loading) return (
+function LoadingScreen() {
+  return (
     <div className="min-h-screen bg-blue-700 flex items-center justify-center">
       <div className="text-white text-center">
         <div className="text-5xl mb-4">🔧</div>
@@ -29,6 +35,11 @@ function ProtectedRoute({ children }) {
       </div>
     </div>
   );
+}
+
+function ProtectedRoute({ children }) {
+  const { user, userProfile, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" />;
   // User is logged in but has no Firestore profile — show account recovery
   if (!userProfile) return <AccountRecovery />;
@@ -40,15 +51,7 @@ function ProtectedRoute({ children }) {
 // Shows the blue loading spinner while Firebase auth resolves (avoids blank screen).
 function RootRoute() {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen bg-blue-700 flex items-center justify-center">
-      <div className="text-white text-center">
-        <div className="text-5xl mb-4">🔧</div>
-        <p className="text-xl font-semibold">Dukaan Manager</p>
-        <p className="text-blue-200 text-sm mt-1">Loading...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <LoadingScreen />;
   return user ? <Navigate to="/dashboard" replace /> : <Landing />;
 }
 
@@ -74,6 +77,18 @@ function AppRoutes() {
   );
 }
 
+function RouteLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-blue-700 flex items-center justify-center">
+      <div className="text-white text-center">
+        <div className="text-5xl mb-4">🔧</div>
+        <p className="text-xl font-semibold">Dukaan Manager</p>
+        <p className="text-blue-200 text-sm mt-1">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -81,7 +96,9 @@ export default function App() {
         <AppProvider>
           <ToastProvider>
             <BrowserRouter>
-              <AppRoutes />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <AppRoutes />
+              </Suspense>
             </BrowserRouter>
           </ToastProvider>
         </AppProvider>

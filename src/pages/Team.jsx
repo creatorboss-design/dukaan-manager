@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import { collection, query, getDocs, doc, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
 import PageWrapper from "../components/layout/PageWrapper";
+import Skeleton from "../components/shared/Skeleton";
 import { Copy, Check, Users, UserCheck, UserMinus, ShieldAlert } from "lucide-react";
 
 export default function Team() {
   const { userProfile, isOwner } = useAuth();
+  const { showToast } = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -32,9 +35,15 @@ export default function Team() {
     try {
       await updateDoc(doc(db, "users", userId), { role: newRole });
       setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      showToast(
+        newRole === "staff" ? "Team member approved" :
+        newRole === "pending" ? "Access revoked" :
+        "Role updated",
+        "success"
+      );
     } catch (err) {
       console.error("Failed to update role", err);
-      alert(err.message);
+      showToast(err.message, "error");
     }
   };
 
@@ -103,7 +112,7 @@ export default function Team() {
           </h3>
           
           {loading ? (
-            <p className="text-gray-500 text-center py-4">Loading team...</p>
+            <Skeleton count={3} />
           ) : (
             <div className="space-y-3">
               {activeUsers.map((u) => (

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useToast } from "../contexts/ToastContext";
 import { Link } from "react-router-dom";
 import { useApp } from "../contexts/AppContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,6 +21,7 @@ export default function Settings() {
 
   const [form, setForm] = useState({ ...shopSettings });
   const [saved, setSaved] = useState(false);
+  const { showToast } = useToast();
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -29,8 +31,9 @@ export default function Settings() {
     if (res.ok) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      showToast("Settings saved successfully", "success");
     } else {
-      alert("Failed to save settings: " + res.error); // We'll upgrade this to a toast in Phase 3
+      showToast("Failed to save settings: " + res.error, "error");
     }
   };
 

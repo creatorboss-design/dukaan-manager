@@ -2,6 +2,7 @@ import { useState } from "react";
 import { db } from "../firebase/config";
 import { doc, setDoc } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
+import { generateUniqueShopCode } from "../utils/shopCode";
 
 export default function AccountRecovery() {
   const { user, logout } = useAuth();
@@ -12,8 +13,9 @@ export default function AccountRecovery() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Re-link to an existing shop using its code — no shop read needed
-  // since users/{uid} create is already allowed for any signed-in user
+  // Re-link to an existing shop using its code.
+  // Attempts owner first — Firestore rules allow this ONLY if shops/{id}.ownerId === uid.
+  // On permission-denied, falls back to role:"pending" (same queue as registerStaff).
   const handleRecover = async (e) => {
     e.preventDefault();
     setError("");
@@ -25,18 +27,32 @@ export default function AccountRecovery() {
       return;
     }
 
+    const baseProfile = {
+      name: user.displayName || user.email.split("@")[0],
+      email: user.email,
+      shopId: id,
+    };
+
     try {
-      // Directly create the user document — no shop read needed.
-      // The user claims ownership; Firestore data access is still gated by rules.
-      await setDoc(doc(db, "users", user.uid), {
-        name: user.displayName || user.email.split("@")[0],
-        email: user.email,
-        role: "owner",
-        shopId: id,
-      });
-      setSuccess("✅ Account recovered! Loading your shop...");
+      // Attempt 1: assume this user really is the shop's original owner.
+      // Firestore rules only allow this write to succeed if
+      // shops/{id}.ownerId === this user's uid.
+      await setDoc(doc(db, "users", user.uid), { ...baseProfile, role: "owner" });
+      setSuccess("✅ Account recovered as owner! Loading your shop...");
     } catch (err) {
-      setError(`Failed: ${err.message}`);
+      if (err.code === "permission-denied") {
+        // Not the owner of that shop code — fall back to the same
+        // "request to join" flow that registerStaff uses. The real
+        // owner approves this from the Team page.
+        try {
+          await setDoc(doc(db, "users", user.uid), { ...baseProfile, role: "pending" });
+          setSuccess("📨 Request sent — waiting for the shop owner to approve you.");
+        } catch (innerErr) {
+          setError(`Failed: ${innerErr.message}`);
+        }
+      } else {
+        setError(`Failed: ${err.message}`);
+      }
     }
     setLoading(false);
   };
@@ -54,7 +70,7 @@ export default function AccountRecovery() {
     }
 
     try {
-      const newShopId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const newShopId = await generateUniqueShopCode();
       await setDoc(doc(db, "shops", newShopId), {
         name,
         ownerId: user.uid,
