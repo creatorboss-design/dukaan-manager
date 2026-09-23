@@ -28,11 +28,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # Make creates the installer files (Squirrel .exe, deb, zip)
+      # Build desktop installers
       - name: Make Installers
         run: npm run make
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ---- Android build (Linux runner only) ----
 
@@ -68,20 +66,30 @@ jobs:
           npm run build:android
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace --no-daemon
-          mv app/build/outputs/apk/debug/app-debug.apk ../dukaan-manager.apk
+          ./gradlew assembleRelease --stacktrace --no-daemon
+          mv app/build/outputs/apk/release/app-release.apk ../dukaan-manager.apk
 
-      # ---- Publish ----
+      # ---- Upload release files ----
 
-      - name: Publish to GitHub Releases
-        run: npm run publish
+            - name: Upload Windows installer
+        if: matrix.os == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            out/make/**/*.exe
+            out/make/**/*.nupkg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Android APK
+      - name: Upload Linux packages
         if: matrix.os == 'ubuntu-latest'
         uses: softprops/action-gh-release@v2
         with:
-          files: dukaan-manager.apk
+          tag_name: ${{ github.ref_name }}
+          files: |
+            out/make/**/*.deb
+            out/make/**/*.zip
+            dukaan-manager.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
