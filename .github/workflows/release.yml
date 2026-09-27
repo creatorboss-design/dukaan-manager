@@ -15,13 +15,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
+
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
-          with:
+        with:
           node-version: 22
           cache: 'npm'
 
@@ -35,16 +36,16 @@ jobs:
       # ---- Android build (Linux runner only) ----
 
       - name: Setup Java (for Android)
-          if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/setup-java@v4
-          with:
+        with:
           distribution: 'zulu'
           java-version: '21'
 
       - name: Cache Gradle
-          if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/cache@v4
-          with:
+        with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
@@ -53,13 +54,13 @@ jobs:
             gradle-${{ runner.os }}-
 
       - name: Setup Android SDK
-          if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         uses: android-actions/setup-android@v4
-          with:
+        with:
           packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
 
       - name: Build Android APK
-          if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         run: |
           node -v
           java -version
@@ -71,24 +72,25 @@ jobs:
 
       # ---- Upload release files ----
 
-        - name: Upload Windows installer
-          if: matrix.os == 'windows-latest'
-          uses: softprops/action-gh-release@v2
-          with:
-            tag_name: ${{ github.ref_name }}
-            files: |
-              out/make/**/*.exe
-              out/make/**/*.nupkg
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        - name: Upload Linux packages
-          if: matrix.os == 'ubuntu-latest'
-          uses: softprops/action-gh-release@v2
-          with:
-            tag_name: ${{ github.ref_name }}
-            files: |
-              out/make/**/*.deb
-              out/make/**/*.zip
-              dukaan-manager.apk
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Windows installer
+        if: matrix.os == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            out/make/**/*.exe
+            out/make/**/*.nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux packages
+        if: matrix.os == 'ubuntu-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            out/make/**/*.deb
+            out/make/**/*.zip
+            dukaan-manager.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
