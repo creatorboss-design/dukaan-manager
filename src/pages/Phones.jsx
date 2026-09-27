@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { formatINR } from "../utils/formatCurrency";
+import { toPositiveNumber } from "../utils/validation";
 import { useSearchParams } from "react-router-dom";
 import { useCollection } from "../hooks/useFirestore";
 import { useApp } from "../contexts/AppContext";
@@ -46,9 +47,24 @@ function PhoneForm({ initial, onSave, lang }) {
     salePrice: "", buyerName: "", buyerPhone: "", warrantyDays: "30", notes: "",
     status: "In Stock", ...initial,
   });
+  const [formError, setFormError] = useState("");
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      setFormError("");
+      try {
+        const payload = {
+          ...form,
+          purchasePrice: form.purchasePrice !== "" ? toPositiveNumber(form.purchasePrice, "Purchase price", { allowZero: true }) : 0,
+          salePrice: form.salePrice !== "" ? toPositiveNumber(form.salePrice, "Sale price", { allowZero: true }) : 0,
+          warrantyDays: form.warrantyDays !== "" ? toPositiveNumber(form.warrantyDays, "Warranty days", { allowZero: true }) : 30,
+        };
+        onSave(payload);
+      } catch (err) {
+        setFormError(err.message);
+      }
+    }}>
       <div className="grid grid-cols-2 gap-2">
         <Input label={t("brand", lang)} value={form.brand} onChange={set("brand")} required />
         <Input label="Model" value={form.model} onChange={set("model")} required />
@@ -74,6 +90,7 @@ function PhoneForm({ initial, onSave, lang }) {
         <Input label={`Warranty (days)`} type="number" value={form.warrantyDays} onChange={set("warrantyDays")} />
         <Select label="Status" value={form.status} onChange={set("status")} options={["In Stock", "Sold"]} />
       </div>
+      {formError && <p className="text-red-600 text-xs mt-1 font-medium">{formError}</p>}
       <BigButton type="submit">{t("save", lang)}</BigButton>
     </form>
   );
@@ -173,8 +190,8 @@ export default function Phones() {
                 </div>
                 {isOwner && (
                   <div className="text-sm text-gray-600 mb-2">
-                    Buy: ₹{p.purchasePrice} {p.salePrice ? `→ Sell: ₹${p.salePrice}` : ""}
-                    {profit !== null && <span className={`ml-2 font-semibold ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>(₹{profit})</span>}
+                    Buy: {formatINR(p.purchasePrice)} {p.salePrice ? `→ Sell: ${formatINR(p.salePrice)}` : ""}
+                    {profit !== null && <span className={`ml-2 font-semibold ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>({formatINR(profit)})</span>}
                   </div>
                 )}
                 <div className="flex gap-2 mt-2">

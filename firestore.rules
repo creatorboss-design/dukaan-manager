@@ -53,6 +53,11 @@ service cloud.firestore {
       allow delete: if isSignedIn() && userDoc().data.role == 'owner' && userDoc().data.shopId == resource.data.shopId;
     }
 
+ match /app_config/{docId} {
+  allow read: if true;
+  allow write: if false;
+}
+
     // Everything is now scoped under shops/{shopId}
     match /shops/{shopId} {
       allow create: if isSignedIn()
@@ -90,7 +95,13 @@ service cloud.firestore {
       }
       
       match /phones/{docId} {
-        allow read, write: if isShopMember(shopId);
+        allow read: if isShopMember(shopId);
+        allow create, update: if isShopMember(shopId)
+                              && request.resource.data.purchasePrice is number
+                              && request.resource.data.purchasePrice >= 0
+                              && request.resource.data.salePrice is number
+                              && request.resource.data.salePrice >= 0;
+        allow delete: if isShopMember(shopId);
       }
       
       match /cashbook/{docId} {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useToast } from "../contexts/ToastContext";
 import { Link } from "react-router-dom";
 import { useApp } from "../contexts/AppContext";
@@ -18,6 +19,8 @@ export default function Settings() {
   const { data: inventory } = useCollection("inventory");
   const { data: phones } = useCollection("phones");
   const { data: cashbook } = useCollection("cashbook");
+  const { data: credits } = useCollection("credit_tracker");
+  const { data: suppliers } = useCollection("suppliers");
 
   const [form, setForm] = useState({ ...shopSettings });
   const [saved, setSaved] = useState(false);
@@ -42,6 +45,8 @@ export default function Settings() {
     setTimeout(() => exportToCSV(inventory, "inventory"), 500);
     setTimeout(() => exportToCSV(phones, "phones"), 1000);
     setTimeout(() => exportToCSV(cashbook, "cashbook"), 1500);
+    setTimeout(() => exportToCSV(credits, "udhaar_credit_tracker"), 2000);
+    setTimeout(() => exportToCSV(suppliers, "suppliers"), 2500);
   };
 
   return (
@@ -53,6 +58,11 @@ export default function Settings() {
           <form onSubmit={handleSave}>
             <Input label={t("shopName", lang)} value={form.shopName} onChange={set("shopName")} />
             <Input label={t("gst", lang)} value={form.gst} onChange={set("gst")} placeholder="Optional" />
+            {form.gst && (
+              <p className="text-xs text-gray-400 -mt-2 mb-3">
+                Invoices will show a Tax Invoice with CGST/SGST split (assumes intra-state supply, 18% total). This is a helper, not a substitute for advice from your accountant — please verify against your actual GST filing requirements.
+              </p>
+            )}
             <Input label={t("branch", lang)} value={form.branch} onChange={set("branch")} />
             <Input label={`Default ${t("warranty", lang)} (${t("days", lang)})`} type="number" value={form.warrantyDays} onChange={set("warrantyDays")} />
             <BigButton type="submit" variant={saved ? "success" : "primary"}>
@@ -99,16 +109,21 @@ export default function Settings() {
               <button onClick={() => exportToCSV(inventory, "inventory")} className="text-sm text-gray-600 border border-gray-200 rounded-xl py-2 hover:bg-gray-50">Inventory</button>
               <button onClick={() => exportToCSV(phones, "phones")} className="text-sm text-gray-600 border border-gray-200 rounded-xl py-2 hover:bg-gray-50">Phones</button>
               <button onClick={() => exportToCSV(cashbook, "cashbook")} className="text-sm text-gray-600 border border-gray-200 rounded-xl py-2 hover:bg-gray-50">Cash Book</button>
+              <button onClick={() => exportToCSV(credits, "udhaar_credit_tracker")} className="text-sm text-gray-600 border border-gray-200 rounded-xl py-2 hover:bg-gray-50">Udhaar</button>
+              <button onClick={() => exportToCSV(suppliers, "suppliers")} className="text-sm text-gray-600 border border-gray-200 rounded-xl py-2 hover:bg-gray-50">Suppliers</button>
             </div>
           </div>
         )}
 
-        {/* PWA Install Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-          <h2 className="font-bold text-blue-800 mb-2">📲 Install on Phone</h2>
-          <p className="text-sm text-blue-700 mb-2"><strong>Android (Chrome):</strong> Tap menu → &quot;Add to Home Screen&quot;</p>
-          <p className="text-sm text-blue-700"><strong>iPhone (Safari):</strong> Tap Share → &quot;Add to Home Screen&quot;</p>
-        </div>
+        {/* PWA Install Instructions — only relevant when running in a mobile
+            browser, not inside the already-installed native app. */}
+        {!Capacitor.isNativePlatform() && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+            <h2 className="font-bold text-blue-800 mb-2">📲 Install on Phone</h2>
+            <p className="text-sm text-blue-700 mb-2"><strong>Android (Chrome):</strong> Tap menu → &quot;Add to Home Screen&quot;</p>
+            <p className="text-sm text-blue-700"><strong>iPhone (Safari):</strong> Tap Share → &quot;Add to Home Screen&quot;</p>
+          </div>
+        )}
 
         <p className="text-center text-xs text-gray-400 pb-2">Dukaan Manager v1.0 • Powered by Firebase</p>
       </div>

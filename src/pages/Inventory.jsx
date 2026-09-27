@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
+import { openExternal } from "../utils/openExternal";
 import { toPositiveNumber } from "../utils/validation";
+import { formatINR } from "../utils/formatCurrency";
 import { friendlyError } from "../utils/friendlyError";
+import { buildWhatsAppLink } from "../utils/whatsapp";
 import { useSearchParams } from "react-router-dom";
 import { runTransaction, doc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -23,10 +26,10 @@ import BarcodeScanner from "../components/inventory/BarcodeScanner";
 
 const CATEGORIES = ["Accessory", "Spare Part"];
 
-function ItemForm({ initial, onSave, lang }) {
+function ItemForm({ initial, onSave, lang, suppliers }) {
   const [form, setForm] = useState({
     itemName: "", category: "Accessory", quantity: "", costPrice: "", sellingPrice: "",
-    lowStockThreshold: "2", barcode: "", ...initial,
+    lowStockThreshold: "2", barcode: "", preferredSupplier: "", ...initial,
   });
   const [scanning, setScanning] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -61,6 +64,12 @@ function ItemForm({ initial, onSave, lang }) {
           onClose={() => setScanning(false)}
         />
       )}
+      <Select
+        label="Preferred Supplier (optional)"
+        value={form.preferredSupplier}
+        onChange={set("preferredSupplier")}
+        options={["", ...suppliers.map((s) => s.name)]}
+      />
       <BigButton type="submit">{t("save", lang)}</BigButton>
     </form>
   );
@@ -106,6 +115,7 @@ export default function Inventory() {
   const { data: items, loading, add, update, remove } = useCollection("inventory");
   const { add: addSale } = useCollection("inventory_sales");
   const { add: addCash } = useCollection("cashbook");
+  const { data: suppliers } = useCollection("suppliers");
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("All");
   const [modal, setModal] = useState(null); // "add" | "edit" | "sell"
@@ -113,6 +123,7 @@ export default function Inventory() {
   const [scanToSell, setScanToSell] = useState(false);
   const [scanToast, setScanToast] = useState("");
   const [deleteId, setDeleteId] = useState(null);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("sell") === "1") {
@@ -127,6 +138,22 @@ export default function Inventory() {
   }), [items, search, catFilter]);
 
   const lowStock = items.filter((i) => Number(i.quantity) <= Number(i.lowStockThreshold || 2));
+
+  // Suggested reorder quantity: bring stock up to double the low-stock
+  // threshold, so the shop doesn't immediately dip back into "low stock"
+  // the moment one more unit sells. Minimum of 1 so a reorder is always
+  // suggested for anything genuinely at or below its threshold.
+  const reorderQty = (item) => Math.max((Number(item.lowStockThreshold || 2) * 2) - Number(item.quantity), 1);
+
+  const reorderGroups = useMemo(() => {
+    const groups = {};
+    lowStock.forEach((item) => {
+      const key = item.preferredSupplier || "No supplier set";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    });
+    return groups;
+  }, [lowStock]);
 
   const handleSave = async (form) => {
     try {
@@ -207,10 +234,11 @@ export default function Inventory() {
     <PageWrapper title={t("inventory", lang)}>
       <div className="py-4">
         {lowStock.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4 flex items-center gap-2">
+          <button onClick={() => setReorderOpen(true)}
+            className="w-full bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4 flex items-center gap-2 text-left hover:bg-amber-100 transition-colors">
             <AlertTriangle size={18} className="text-amber-500 shrink-0" />
-            <p className="text-sm text-amber-800"><span className="font-bold">{lowStock.length}</span> items low on stock!</p>
-          </div>
+            <p className="text-sm text-amber-800 flex-1"><span className="font-bold">{lowStock.length}</span> items low on stock — tap to see reorder list</p>
+          </button>
         )}
 
         <div className="flex gap-2 mb-3">
@@ -269,8 +297,8 @@ export default function Inventory() {
                 </div>
                 <div className="flex justify-between items-center mt-2">
                   <div>
-                    {isOwner && <p className="text-xs text-gray-500">Cost: ₹{item.costPrice} •</p>}
-                    <p className="text-sm font-semibold text-green-600">₹{item.sellingPrice}</p>
+                    {isOwner && <p className="text-xs text-gray-500">Cost: {formatINR(item.costPrice)} •</p>}
+                    <p className="text-sm font-semibold text-green-600">{formatINR(item.sellingPrice)}</p>
                   </div>
                   <div className="flex gap-2">
                     {isOwner && (
@@ -292,10 +320,42 @@ export default function Inventory() {
 
       <Modal open={modal === "add" || modal === "edit"} onClose={() => { setModal(null); setSelected(null); }}
         title={modal === "edit" ? "Edit Item" : t("addItem", lang)}>
-        <ItemForm initial={selected} onSave={handleSave} lang={lang} />
+        <ItemForm initial={selected} onSave={handleSave} lang={lang} suppliers={suppliers} />
       </Modal>
       <Modal open={modal === "sell" && !!selected} onClose={() => { setModal(null); setSelected(null); }} title="Sell Item">
         {selected && <SellForm item={selected} onSell={handleSell} onClose={() => setModal(null)} lang={lang} />}
+      </Modal>
+      <Modal open={reorderOpen} onClose={() => setReorderOpen(false)} title="Reorder List">
+        <div className="space-y-4">
+          {Object.entries(reorderGroups).map(([supplierName, groupItems]) => {
+            const supplier = suppliers.find((s) => s.name === supplierName);
+            const messageLines = groupItems.map((item) => `- ${item.itemName}: ${reorderQty(item)} units`).join("\n");
+            const waLink = supplier?.contact
+              ? buildWhatsAppLink(supplier.contact, `Hi, I'd like to reorder the following items:\n${messageLines}\n\nThank you!`)
+              : null;
+            return (
+              <div key={supplierName} className="border border-gray-100 rounded-xl p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-semibold text-gray-800 text-sm">{supplierName}</h3>
+                  {waLink && (
+                    <button onClick={() => openExternal(waLink)}
+                      className="text-xs text-white bg-green-500 rounded-lg px-3 py-1.5 hover:bg-green-600 active:scale-95 transition-all">
+                      💬 Send List
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  {groupItems.map((item) => (
+                    <div key={item.id} className="flex justify-between text-sm text-gray-600">
+                      <span>{item.itemName} <span className="text-gray-400">({item.quantity} left)</span></span>
+                      <span className="font-medium text-amber-700">order {reorderQty(item)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </Modal>
       {scanToSell && (
         <BarcodeScanner

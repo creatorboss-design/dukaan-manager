@@ -1,3 +1,4 @@
+// NOT CURRENTLY DEPLOYED — requires Firebase Blaze plan. See src/utils/cloudinary.js for the free-tier fallback in use instead.
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const cloudinary = require("cloudinary").v2;
 

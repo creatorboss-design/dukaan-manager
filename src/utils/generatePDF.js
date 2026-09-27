@@ -1,5 +1,20 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatINR } from "./formatCurrency";
+
+const GST_RATE = 0.18; // Assumed 18% total (9% CGST + 9% SGST), intra-state only.
+
+/**
+ * Splits a tax-inclusive amount into its taxable value, CGST, and SGST
+ * components, assuming intra-state supply at GST_RATE total.
+ * @param {number} inclusiveAmount
+ * @returns {{ taxable: number, cgst: number, sgst: number }}
+ */
+function splitGST(inclusiveAmount) {
+  const taxable = inclusiveAmount / (1 + GST_RATE);
+  const totalTax = inclusiveAmount - taxable;
+  return { taxable: Math.round(taxable), cgst: Math.round(totalTax / 2), sgst: Math.round(totalTax / 2) };
+}
 
 export function generateInvoicePDF({ repair, shopSettings }) {
   const doc = new jsPDF();
@@ -14,7 +29,7 @@ export function generateInvoicePDF({ repair, shopSettings }) {
   if (gst) doc.text(`GST: ${gst}`, 14, 28);
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text("REPAIR INVOICE", 140, 20);
+  doc.text(gst ? "TAX INVOICE" : "REPAIR INVOICE", 140, 20);
   doc.setFontSize(10);
   doc.text(`Token: #${repair.tokenNo || repair.id?.slice(0, 6).toUpperCase()}`, 140, 28);
   doc.text(`Date: ${new Date().toLocaleDateString("en-IN")}`, 140, 34);
@@ -32,15 +47,30 @@ export function generateInvoicePDF({ repair, shopSettings }) {
   doc.text(`Device: ${repair.deviceModel || ""}`, 14, 70);
   doc.text(`Issue: ${repair.issue || ""}`, 14, 76);
 
-  // Cost table
+  // Cost table — shows a GST breakdown only if the shop has a GST number set.
+  const totalAmount = repair.finalCost || repair.estimatedCost || 0;
+  const gstBody = gst
+    ? (() => {
+        const { taxable, cgst, sgst } = splitGST(totalAmount);
+        return [
+          ["Taxable Value", formatINR(taxable)],
+          ["CGST (9%)", formatINR(cgst)],
+          ["SGST (9%)", formatINR(sgst)],
+          ["Total (incl. GST)", formatINR(totalAmount)],
+          ["Advance Paid", formatINR(repair.advancePaid || 0)],
+          ["Balance Due", formatINR(totalAmount - (repair.advancePaid || 0))],
+        ];
+      })()
+    : [
+        ["Estimated Cost", formatINR(repair.estimatedCost || 0)],
+        ["Advance Paid", formatINR(repair.advancePaid || 0)],
+        ["Balance Due", formatINR(totalAmount - (repair.advancePaid || 0))],
+      ];
+
   autoTable(doc, {
     startY: 86,
-    head: [["Description", "Amount (₹)"]],
-    body: [
-      ["Estimated Cost", `₹ ${repair.estimatedCost || 0}`],
-      ["Advance Paid", `₹ ${repair.advancePaid || 0}`],
-      ["Balance Due", `₹ ${(repair.finalCost || repair.estimatedCost || 0) - (repair.advancePaid || 0)}`],
-    ],
+    head: [["Description", "Amount"]],
+    body: gstBody,
     theme: "grid",
     headStyles: { fillColor: [30, 64, 175] },
   });
@@ -74,7 +104,7 @@ export function generateInvoicePDFBlob({ repair, shopSettings }) {
   if (gst) doc.text(`GST: ${gst}`, 14, 28);
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text("REPAIR INVOICE", 140, 20);
+  doc.text(gst ? "TAX INVOICE" : "REPAIR INVOICE", 140, 20);
   doc.setFontSize(10);
   doc.text(`Token: #${repair.tokenNo || repair.id?.slice(0, 6).toUpperCase()}`, 140, 28);
   doc.text(`Date: ${new Date().toLocaleDateString("en-IN")}`, 140, 34);
@@ -90,14 +120,30 @@ export function generateInvoicePDFBlob({ repair, shopSettings }) {
   doc.text(`Device: ${repair.deviceModel || ""}`, 14, 70);
   doc.text(`Issue: ${repair.issue || ""}`, 14, 76);
 
+  // Cost table — shows a GST breakdown only if the shop has a GST number set.
+  const totalAmount2 = repair.finalCost || repair.estimatedCost || 0;
+  const gstBody2 = gst
+    ? (() => {
+        const { taxable, cgst, sgst } = splitGST(totalAmount2);
+        return [
+          ["Taxable Value", formatINR(taxable)],
+          ["CGST (9%)", formatINR(cgst)],
+          ["SGST (9%)", formatINR(sgst)],
+          ["Total (incl. GST)", formatINR(totalAmount2)],
+          ["Advance Paid", formatINR(repair.advancePaid || 0)],
+          ["Balance Due", formatINR(totalAmount2 - (repair.advancePaid || 0))],
+        ];
+      })()
+    : [
+        ["Estimated Cost", formatINR(repair.estimatedCost || 0)],
+        ["Advance Paid", formatINR(repair.advancePaid || 0)],
+        ["Balance Due", formatINR(totalAmount2 - (repair.advancePaid || 0))],
+      ];
+
   autoTable(doc, {
     startY: 86,
-    head: [["Description", "Amount (₹)"]],
-    body: [
-      ["Estimated Cost", `₹ ${repair.estimatedCost || 0}`],
-      ["Advance Paid", `₹ ${repair.advancePaid || 0}`],
-      ["Balance Due", `₹ ${(repair.finalCost || repair.estimatedCost || 0) - (repair.advancePaid || 0)}`],
-    ],
+    head: [["Description", "Amount"]],
+    body: gstBody2,
     theme: "grid",
     headStyles: { fillColor: [30, 64, 175] },
   });

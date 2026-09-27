@@ -1,5 +1,8 @@
 import { useMemo } from "react";
+import { openExternal } from "../utils/openExternal";
 import { formatINR } from "../utils/formatCurrency";
+import { friendlyError } from "../utils/friendlyError";
+import { buildWhatsAppLink } from "../utils/whatsapp";
 import { Link } from "react-router-dom";
 import { useCollection } from "../hooks/useFirestore";
 import { useApp } from "../contexts/AppContext";
@@ -26,9 +29,11 @@ export default function Dashboard() {
   const { user, userProfile, isOwner, profileError } = useAuth();
 
   const { data: repairs, error: repairsErr } = useCollection("repairs");
-  const { data: inventory } = useCollection("inventory");
-  const { data: cashbook } = useCollection("cashbook");
-  const { data: inventorySales } = useCollection("inventory_sales");
+  const { data: inventory, error: inventoryErr } = useCollection("inventory");
+  const { data: cashbook, error: cashbookErr } = useCollection("cashbook");
+  const { data: inventorySales, error: salesErr } = useCollection("inventory_sales");
+
+  const dataError = repairsErr || inventoryErr || cashbookErr || salesErr;
 
   const today = new Date().toDateString();
 
@@ -72,12 +77,67 @@ export default function Dashboard() {
     return dayNames.map((name, i) => ({ name, count: counts[i] })).sort((a, b) => b.count - a.count);
   }, [repairs]);
 
+  const warrantyReminders = useMemo(() => {
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now);
+    sevenDaysFromNow.setDate(now.getDate() + 7);
+
+    return repairs
+      .filter((r) => r.status === "Delivered" && r.deliveredAt && r.warrantyDays)
+      .map((r) => {
+        const deliveredDate = r.deliveredAt?.toDate?.() || null;
+        if (!deliveredDate) return null;
+        const expiryDate = new Date(deliveredDate);
+        expiryDate.setDate(expiryDate.getDate() + Number(r.warrantyDays));
+        return { ...r, expiryDate };
+      })
+      .filter((r) => r && r.expiryDate >= now && r.expiryDate <= sevenDaysFromNow)
+      .sort((a, b) => a.expiryDate - b.expiryDate);
+  }, [repairs]);
+
   return (
     <PageWrapper title={shopSettings.shopName}>
       <div className="py-4">
         <p className="text-gray-500 text-sm mb-4">
           Welcome, <span className="font-semibold text-gray-700">{userProfile?.name || "User"}</span> 👋
         </p>
+
+        {dataError && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-3 mb-4 flex items-start gap-2">
+            <AlertTriangle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-red-700">
+              Some data couldn't be loaded ({friendlyError(dataError)}). The numbers below may be incomplete — try refreshing.
+            </p>
+          </div>
+        )}
+
+        {warrantyReminders.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
+            <h2 className="font-bold text-gray-800 mb-3 flex items-center gap-2">⏰ Warranty Ending Soon</h2>
+            <div className="space-y-2">
+              {warrantyReminders.map((r) => {
+                const waLink = buildWhatsAppLink(
+                  r.phone,
+                  `Hi ${r.customerName}, just a heads up — the warranty on your ${r.brand ? r.brand + " " : ""}${r.deviceModel} repair ends on ${r.expiryDate.toLocaleDateString("en-IN")}. Feel free to bring it in for a free checkup before then! — ${shopSettings.shopName || "Dukaan Manager"}`
+                );
+                return (
+                  <div key={r.id} className="flex justify-between items-center bg-amber-50 border border-amber-100 rounded-xl p-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{r.customerName}</p>
+                      <p className="text-xs text-gray-500">{r.brand} {r.deviceModel} • ends {r.expiryDate.toLocaleDateString("en-IN")}</p>
+                    </div>
+                    {waLink && (
+                      <button onClick={() => openExternal(waLink)}
+                        className="text-xs text-white bg-green-500 rounded-lg px-3 py-1.5 hover:bg-green-600 active:scale-95 transition-all whitespace-nowrap">
+                        💬 Remind
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <StatCard icon={Wrench} label="Active Jobs" value={stats.activeJobs} color="border-blue-500" to="/repairs" />

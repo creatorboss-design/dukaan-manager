@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
+import { openExternal } from "../utils/openExternal";
 import { toPositiveNumber } from "../utils/validation";
 import { formatINR } from "../utils/formatCurrency";
 import { friendlyError } from "../utils/friendlyError";
+import { buildWhatsAppLink } from "../utils/whatsapp";
 import { useSearchParams } from "react-router-dom";
 import { useCollection } from "../hooks/useFirestore";
 import { useApp } from "../contexts/AppContext";
@@ -259,33 +261,49 @@ export default function CashBook() {
               <Plus size={16} /> Add Udhaar Entry
             </button>
             <div className="space-y-2">
-              {credits.map((c) => (
-                <div key={c.id} onClick={() => toggleExpand(c.id)} className={`bg-white rounded-xl p-3 shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors ${c.paidStatus ? "border-green-200 opacity-60" : "border-amber-200"}`}>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold text-gray-800">{c.customerName}</p>
-                      <p className="text-xs text-gray-400">{c.phone} {c.dueDate ? `• Due: ${c.dueDate}` : ""}</p>
+              {credits.map((c) => {
+                const waLink = !c.paidStatus
+                  ? buildWhatsAppLink(
+                      c.phone,
+                      `Hi ${c.customerName}, this is a friendly reminder that ₹${c.amountOwed} is pending${c.dueDate ? ` (due ${c.dueDate})` : ""}. Please clear it at your earliest convenience. Thank you!`
+                    )
+                  : null;
+                return (
+                  <div key={c.id} onClick={() => toggleExpand(c.id)} className={`bg-white rounded-xl p-3 shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors ${c.paidStatus ? "border-green-200 opacity-60" : "border-amber-200"}`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-gray-800">{c.customerName}</p>
+                        <p className="text-xs text-gray-400">{c.phone} {c.dueDate ? `• Due: ${c.dueDate}` : ""}</p>
+                      </div>
+                      <div className="flex items-center">
+                        <p className={`font-bold mr-3 ${c.paidStatus ? "text-green-600" : "text-red-500"}`}>{formatINR(c.amountOwed)}</p>
+                        {isOwner && (
+                          <button onClick={(ev) => { ev.stopPropagation(); setDeleteData({ id: c.id, type: "credit" }); }} className="text-gray-400 hover:text-red-500 p-1">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center">
-                      <p className={`font-bold mr-3 ${c.paidStatus ? "text-green-600" : "text-red-500"}`}>{formatINR(c.amountOwed)}</p>
-                      {isOwner && (
-                        <button onClick={(ev) => { ev.stopPropagation(); setDeleteData({ id: c.id, type: "credit" }); }} className="text-gray-400 hover:text-red-500 p-1">
-                          <Trash2 size={16} />
+                    {expandedId === c.id && c.notes && (
+                      <div className="mt-2 pt-2 border-t border-gray-100 text-sm text-gray-600">
+                        <strong>Notes:</strong> {c.notes}
+                      </div>
+                    )}
+                    <div className="flex gap-2 mt-2">
+                      {!c.paidStatus && isOwner && (
+                        <button onClick={(ev) => { ev.stopPropagation(); handleMarkPaid(c.id); }}
+                          className="text-xs text-green-600 border border-green-300 rounded-lg px-3 py-1.5 hover:bg-green-50">{t("markPaid", lang)}</button>
+                      )}
+                      {waLink && (
+                        <button onClick={(ev) => { ev.stopPropagation(); openExternal(waLink); }}
+                          className="text-xs text-white bg-green-500 rounded-lg px-3 py-1.5 hover:bg-green-600 active:scale-95 transition-all inline-flex items-center gap-1">
+                          💬 Remind
                         </button>
                       )}
                     </div>
                   </div>
-                  {expandedId === c.id && c.notes && (
-                    <div className="mt-2 pt-2 border-t border-gray-100 text-sm text-gray-600">
-                      <strong>Notes:</strong> {c.notes}
-                    </div>
-                  )}
-                  {!c.paidStatus && isOwner && (
-                    <button onClick={(ev) => { ev.stopPropagation(); handleMarkPaid(c.id); }}
-                      className="mt-2 text-xs text-green-600 border border-green-300 rounded-lg px-3 py-1.5 hover:bg-green-50">{t("markPaid", lang)}</button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}

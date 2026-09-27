@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AppProvider } from "./contexts/AppContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary";
+import BackButtonHandler from "./components/shared/BackButtonHandler";
+import UpdateBanner from "./components/shared/UpdateBanner";
 
 // Keep these two eager — they're needed immediately on first load / auth
 // resolution, so lazy-loading them would add a flash-of-loading-spinner
@@ -96,6 +98,8 @@ export default function App() {
         <AppProvider>
           <ToastProvider>
             <BrowserRouter>
+              <BackButtonHandler />
+              <UpdateBanner />
               <Suspense fallback={<RouteLoadingFallback />}>
                 <AppRoutes />
               </Suspense>

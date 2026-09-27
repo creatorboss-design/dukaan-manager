@@ -1,4 +1,13 @@
-﻿export default function Modal({ open, onClose, title, children }) {
+import { useEffect } from "react";
+import { pushModal, popModal } from "../../hooks/useModalBackStack";
+
+export default function Modal({ open, onClose, title, children }) {
+  useEffect(() => {
+    if (!open) return;
+    pushModal(onClose);
+    return () => popModal(onClose);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onClose}>

@@ -5,6 +5,7 @@ import {
   signOut,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { generateUniqueShopCode } from "../utils/shopCode";
@@ -81,6 +82,8 @@ export function AuthProvider({ children }) {
 
   const login = (email, password) => signInWithEmailAndPassword(auth, email, password);
 
+  const resetPassword = (email) => sendPasswordResetEmail(auth, email);
+
   const registerOwner = async (email, password, name, shopName) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     // Generate a collision-safe 6-character alphanumeric shop code
@@ -119,7 +122,7 @@ export function AuthProvider({ children }) {
   const isOwner = userProfile?.role === "owner";
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, profileError, loading, login, registerOwner, registerStaff, logout, isOwner }}>
+    <AuthContext.Provider value={{ user, userProfile, profileError, loading, login, registerOwner, registerStaff, resetPassword, logout, isOwner }}>
       {children}
     </AuthContext.Provider>
   );

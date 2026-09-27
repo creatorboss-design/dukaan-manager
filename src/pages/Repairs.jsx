@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
+import { openExternal } from "../utils/openExternal";
+import { buildWhatsAppLink } from "../utils/whatsapp";
 import { toPositiveNumber } from "../utils/validation";
+import { formatINR } from "../utils/formatCurrency";
 import { useSearchParams } from "react-router-dom";
 import { useCollection } from "../hooks/useFirestore";
 import { useApp } from "../contexts/AppContext";
@@ -116,17 +119,10 @@ function RepairCard({ repair, onEdit, onStatusChange, onDelete, onUpload, upload
   const balance = (Number(repair.finalCost || repair.estimatedCost) - Number(repair.advancePaid || 0));
 
   // Build the WhatsApp notify link (wa.me opens whatsapp with prefilled message)
-  const waLink = repair.phone
-    ? (() => {
-        const phone = repair.phone.replace(/[^0-9]/g, "");
-        // Add country code if not present (assume India +91 if 10 digits)
-        const e164 = phone.length === 10 ? `91${phone}` : phone;
-        const msg = encodeURIComponent(
-          `Hi ${repair.customerName}, your ${repair.brand ? repair.brand + " " : ""}${repair.deviceModel} is ready for pickup! Please visit our shop at your convenience. — ${shopSettings.shopName || "Dukaan Manager"}`
-        );
-        return `https://wa.me/${e164}?text=${msg}`;
-      })()
-    : null;
+  const waLink = buildWhatsAppLink(
+    repair.phone,
+    `Hi ${repair.customerName}, your ${repair.brand ? repair.brand + " " : ""}${repair.deviceModel} is ready for pickup! Please visit our shop at your convenience. — ${shopSettings.shopName || "Dukaan Manager"}`
+  );
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-4 mb-3 border border-gray-100">
@@ -153,7 +149,7 @@ function RepairCard({ repair, onEdit, onStatusChange, onDelete, onUpload, upload
       </div>
 
       <div className="flex justify-between items-center text-sm">
-        {isOwner && <span className="text-gray-500">₹{repair.estimatedCost} {balance > 0 ? `• Due: ₹${balance}` : ""}</span>}
+        {isOwner && <span className="text-gray-500">{formatINR(repair.estimatedCost)} {balance > 0 ? `• Due: ${formatINR(balance)}` : ""}</span>}
         <span className="text-gray-400 text-xs">#{repair.tokenNo || repair.id?.slice(0, 6).toUpperCase()}</span>
       </div>
 
@@ -185,26 +181,22 @@ function RepairCard({ repair, onEdit, onStatusChange, onDelete, onUpload, upload
         </button>
         {/* Link to stored invoice if available */}
         {repair.invoiceUrl && !uploading && (
-          <a
-            href={repair.invoiceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => openExternal(repair.invoiceUrl)}
             title="View uploaded invoice"
             className="flex items-center justify-center border border-blue-200 text-blue-500 rounded-xl px-3 hover:bg-blue-50 transition-colors"
           >
             <ExternalLink size={14} />
-          </a>
+          </button>
         )}
         {repair.status === "Ready" && waLink && (
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => openExternal(waLink)}
             className="flex items-center gap-1 text-sm text-white bg-green-500 rounded-xl py-2 px-3 hover:bg-green-600 active:scale-95 transition-all"
             title="Notify customer via WhatsApp"
           >
             💬 Notify
-          </a>
+          </button>
         )}
         <button onClick={() => onStatusChange(repair.id, "Delivered")}
           className={`text-sm rounded-xl py-2 px-3 ${repair.status === "Delivered" ? "bg-gray-100 text-gray-400" : "bg-green-600 text-white"}`}
